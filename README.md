@@ -1,6 +1,9 @@
 # KoTemu (Kopi & Temu Kota Palu)
 ### Sistem Informasi Geografis Pemetaan Sebaran Kafe di Kota Palu Berbasis Web
 
+🌐 **Website Live (Vercel):** [https://kotemu.vercel.app/](https://kotemu.vercel.app/)  
+💻 **Repository GitHub:** [https://github.com/fardan16/kotemu](https://github.com/fardan16/kotemu)
+
 **KoTemu** adalah aplikasi Web GIS interaktif yang dikembangkan untuk memetakan dan mengelola persebaran lokasi kafe serta kedai kopi di seluruh wilayah Kota Palu. Sistem ini menggabungkan visualisasi spasial berbasis citra satelit dan peta jalan, fitur navigasi rute terdekat, analisis kepadatan (heatmap), sistem pemesanan menu dengan pencetakan struk digital, serta manajemen data kasir terintegrasi.
 
 Aplikasi ini dibangun menggunakan pendekatan **Software Development Life Cycle (SDLC) Model Waterfall**, menerapkan **3 Unsur Spasial GIS (Point, Line, dan Polygon Batas Wilayah)**, serta mendukung penyimpanan data lokal (*Local Storage*) dan sinkronisasi awan (*Firebase Cloud Firestore*).
