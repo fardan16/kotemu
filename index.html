@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KoTemu - Pemetaan Sebaran Kafe di Kota Palu | Citra Satelit & Web GIS</title>
+  <meta name="description" content="Sistem Informasi Geografis pemetaan sebaran 30 titik kafe di Kota Palu berbasis Citra Satelit dan SDLC Waterfall terintegrasi database Firebase." />
+  <link rel="icon" type="image/svg+xml" href="assets/images/logo.svg" />
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Font Awesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <!-- Leaflet MarkerCluster CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="assets/css/style.css" />
+</head>
+<body>
+
+  <!-- ================= TOP NAVBAR ================= -->
+  <header class="navbar">
+    <div class="brand" onclick="location.reload()">
+      <img src="assets/images/logo.svg" alt="KoTemu Logo" class="brand-logo" />
+      <div class="brand-text">
+        <h1>KoTemu</h1>
+        <span>Citra Satelit &bull; Kota Palu</span>
+      </div>
+    </div>
+
+    <div class="nav-actions">
+      <!-- Wilayah Satelit Info Pill -->
+      <button class="btn-outline" onclick="fitMapToPaluCity()" title="Fokuskan peta ke batas wilayah resmi Kota Palu">
+        <i class="fa-solid fa-satellite" style="color:var(--amber-primary);"></i>
+        <span class="hidden md:inline">Citra Satelit Kota Palu (395 km²)</span>
+      </button>
+
+      <!-- Database Firebase Status Badge -->
+      <div id="firebase-status-badge" class="firebase-badge firebase-badge--local" onclick="openModal('modal-firebase-sync')" title="Klik untuk pengaturan database Firebase">
+        <span id="firebase-status-dot" class="firebase-dot firebase-dot--local"></span>
+        <span id="firebase-status-text">Database: Local / Firebase</span>
+      </div>
+
+      <!-- Tombol SDLC Waterfall Info -->
+      <button class="btn-outline" onclick="openModal('modal-sdlc-info')" title="Lihat Penerapan Siklus SDLC Waterfall & GIS">
+        <i class="fa-solid fa-diagram-project" style="color:var(--amber-primary);"></i>
+        <span class="hidden sm:inline">Metodologi SDLC</span>
+      </button>
+
+      <!-- Tombol Login Admin / Kasir (Proses 1.0 DFD) -->
+      <button id="btn-admin-login" class="btn-outline" onclick="openAdminModal()" title="Login Admin / Kasir untuk Kelola Data & Laporan">
+        <i class="fa-solid fa-user-shield" style="color:var(--amber-primary);"></i>
+        <span id="admin-btn-text" class="hidden sm:inline">Login Admin</span>
+      </button>
+
+      <!-- Tombol Rekap Laporan Transaksi (Proses 5.0 DFD) -->
+      <button id="btn-rekap-transaksi" class="btn-outline" style="display:none;" onclick="openModal('modal-rekap-transaksi'); renderTransactionReport();" title="Rekapitulasi Laporan Transaksi Harian">
+        <i class="fa-solid fa-chart-line" style="color:#10b981;"></i>
+        <span class="hidden sm:inline">Laporan Transaksi</span>
+      </button>
+
+      <!-- Tombol Tambah Kafe -->
+      <button class="btn-primary" onclick="openModal('modal-add-cafe')">
+        <i class="fa-solid fa-plus"></i>
+        <span>Tambah Kafe</span>
+      </button>
+
+      <!-- Dark Mode Toggle -->
+      <button class="btn-icon" onclick="toggleTheme()" title="Ubah Tema Gelap / Terang">
+        <i id="theme-icon" class="fa-solid fa-moon"></i>
+      </button>
+
+      <!-- Mobile Sidebar Toggle -->
+      <button class="btn-icon btn-sidebar-toggle" style="display:none;" onclick="toggleSidebar()" title="Buka Menu Kafe">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- ================= MAIN APP WRAPPER ================= -->
+  <div class="main-wrapper">
+
+    <!-- ================= SIDEBAR ================= -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-header">
+        <!-- Live Search Box -->
+        <div class="search-box">
+          <i class="fa-solid fa-magnifying-glass"></i>
+          <input type="text" id="search-input" placeholder="Cari nama kafe, jalan, atau menu..." />
+        </div>
+
+        <!-- Quick GIS Stats Ribbon -->
+        <div class="stats-ribbon">
+          <div class="stat-chip">
+            <div class="val" id="stat-total-cafes">30</div>
+            <div class="lbl">Titik Kafe</div>
+          </div>
+          <div class="stat-chip">
+            <div class="val" id="stat-districts">5</div>
+            <div class="lbl">Kecamatan Aktif</div>
+          </div>
+          <div class="stat-chip">
+            <div class="val" id="stat-avg-rating">4.7★</div>
+            <div class="lbl">Rata-rata</div>
+          </div>
+        </div>
+
+        <!-- Filter Controls -->
+        <div class="filter-section">
+          <!-- Kecamatan Filter Pills (Pencarian Berdasarkan Kawasan) -->
+          <div class="filter-row">
+            <button class="pill-filter district-pill active" data-district="all">Semua Kafe (30)</button>
+            <button class="pill-filter district-pill" data-district="Palu Timur">Palu Timur (11)</button>
+            <button class="pill-filter district-pill" data-district="Palu Selatan">Palu Selatan (9)</button>
+            <button class="pill-filter district-pill" data-district="Palu Barat">Palu Barat (5)</button>
+            <button class="pill-filter district-pill" data-district="Mantikulore">Mantikulore (4)</button>
+            <button class="pill-filter district-pill" data-district="Tatanga">Tatanga (1)</button>
+          </div>
+
+          <!-- Fasilitas Filter & Sort -->
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+            <div class="filter-row" style="flex:1;">
+              <button class="pill-filter facility-filter-btn" data-facility="Wi-Fi"><i class="fa-solid fa-wifi"></i> Wi-Fi</button>
+              <button class="pill-filter facility-filter-btn" data-facility="AC"><i class="fa-regular fa-snowflake"></i> AC</button>
+              <button class="pill-filter facility-filter-btn" data-facility="Outdoor"><i class="fa-solid fa-tree"></i> Outdoor</button>
+              <button class="pill-filter facility-filter-btn" data-facility="Stopkontak"><i class="fa-solid fa-plug"></i> Colokan</button>
+            </div>
+            
+            <select id="sort-select" class="select-filter" title="Urutkan Kafe">
+              <option value="rating_desc">Rating Tertinggi</option>
+              <option value="reviews_desc">Ulasan Terbanyak</option>
+              <option value="name_asc">Nama (A - Z)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cafe List Cards Container -->
+      <div class="cafe-list-wrapper">
+        <div class="results-meta">
+          <span id="results-count">30 Kafe Ditemukan</span>
+          <span style="font-size:0.7rem; color:var(--amber-primary); cursor:pointer;" onclick="resetAllFilters()">Reset Filter</span>
+        </div>
+        <div id="cafe-list-container" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- Dynamically populated via app.js -->
+        </div>
+      </div>
+    </aside>
+
+    <!-- ================= MAP CANVAS (CITRA SATELIT) ================= -->
+    <main id="map"></main>
+
+    <!-- ================= FLOATING MAP TOOLBAR ================= -->
+    <div class="map-floating-toolbar">
+      <!-- Base Layer Switcher (Default: Citra Satelit) -->
+      <div class="toolbar-group">
+        <select id="base-tile-select" class="select-filter" style="font-size:0.75rem; border:none; padding:4px 8px; background:transparent;">
+          <option value="Citra Satelit Hybrid" selected>🛰️ Citra Satelit Hybrid</option>
+          <option value="Google Satelit Hybrid">🌐 Google Satelit Hybrid</option>
+          <option value="Citra Satelit Murni">📷 Citra Satelit Murni</option>
+          <option value="Peta Jalan Esri">🗺️ Peta Jalan Resmi (Esri)</option>
+          <option value="Peta Topografi Esri">⛰️ Peta Topografi & Kontur</option>
+          <option value="Peta Vektor Positron">⚪ Peta Terang Positron</option>
+          <option value="OpenStreetMap">🌍 OpenStreetMap</option>
+        </select>
+      </div>
+
+      <!-- Spatial Layer Toggles (Batas Kota Palu, Jalan, Heatmap) -->
+      <div class="toolbar-group">
+        <button id="btn-toggle-city" class="tool-btn active" title="Tampilkan Batas Administrasi Resmi Kota Palu">
+          <i class="fa-solid fa-shield-halved" style="color:#fbbf24;"></i>
+          <span>Batas Kota Palu</span>
+        </button>
+        <button id="btn-toggle-roads" class="tool-btn active" title="Tampilkan Jaringan Jalan Utama Akses Kafe (Line)">
+          <i class="fa-solid fa-road" style="color:#38bdf8;"></i>
+          <span>Akses Jalan</span>
+        </button>
+        <button id="btn-toggle-heatmap" class="tool-btn" title="Tampilkan Analisis Kepadatan Spasial (Heatmap)">
+          <i class="fa-solid fa-fire" style="color:#ef4444;"></i>
+          <span>Heatmap Sebaran</span>
+        </button>
+        <button id="btn-fit-palu" class="tool-btn" title="Fokuskan peta ke seluruh wilayah Kota Palu">
+          <i class="fa-solid fa-maximize" style="color:#f59e0b;"></i>
+          <span>Peta Kota Palu</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- ================= FLOATING ROUTE CARD ================= -->
+    <div id="route-floating-panel" class="route-floating-panel" style="display:none;">
+      <div>
+        <div style="font-size:0.68rem; font-weight:700; color:var(--text-muted); text-transform:uppercase;">Rute Aktif Menuju:</div>
+        <div id="route-dest-name" style="font-size:1.05rem; font-weight:800; color:var(--text-main);">-</div>
+      </div>
+      <div class="route-divider"></div>
+      <div class="route-stat">
+        <span class="val" id="route-distance">0.0 km</span>
+        <span class="lbl">Jarak Tempuh</span>
+      </div>
+      <div class="route-divider"></div>
+      <div class="route-stat">
+        <span class="val" id="route-duration">0 mnt</span>
+        <span class="lbl">Estimasi Waktu</span>
+      </div>
+      <button class="btn-icon" onclick="clearCurrentRoute()" title="Tutup Rute" style="border:none; background:var(--coffee-100); color:var(--coffee-800);">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+
+    <!-- ================= GIS LEGEND WIDGET ================= -->
+    <div class="gis-legend">
+      <h4>Legenda Peta Satelit Palu</h4>
+      <div class="legend-item">
+        <div class="legend-symbol" style="border: 2px dashed #fbbf24; background: transparent;"></div>
+        <span>Batas Wilayah Kota Palu</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-symbol" style="background:#38bdf8; height:4px; border-radius:2px;"></div>
+        <span>Line: Jaringan Jalan Utama</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-symbol legend-point"></div>
+        <span>Point: 30 Kafe Lapangan</span>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ================= MODAL: DETAIL KAFE ================= -->
+  <div id="modal-cafe-detail" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-cafe-detail')">
+    <div class="modal-card">
+      <div style="position:relative; height:240px; background-color:var(--coffee-950);">
+        <img id="modal-detail-img" src="" alt="Foto Kafe" style="width:100%; height:100%; object-fit:cover;" onerror="this.src='assets/images/logo.svg'" />
+        <button class="btn-icon" style="position:absolute; top:14px; right:14px; background:rgba(0,0,0,0.6); color:#fff; border:none;" onclick="closeModal('modal-cafe-detail')">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+        <span id="modal-detail-rating" class="card-badge-rating" style="position:absolute; bottom:14px; right:14px; font-size:0.85rem; padding:6px 12px;">★ 4.8</span>
+      </div>
+      <div class="modal-body">
+        <div>
+          <h2 id="modal-detail-title" style="font-size:1.4rem; font-weight:800; color:var(--text-main); line-height:1.2;">Nama Kafe</h2>
+          <div id="modal-detail-district" style="font-size:0.85rem; font-weight:700; color:var(--amber-primary); margin-top:4px;">Kecamatan • Kategori</div>
+          <div id="modal-detail-address" style="font-size:0.8rem; color:var(--text-muted); margin-top:6px;"><i class="fa-solid fa-location-dot"></i> Alamat</div>
+        </div>
+
+        <p id="modal-detail-desc" style="font-size:0.85rem; color:var(--text-main); line-height:1.5;">Deskripsi lengkap kafe...</p>
+
+        <!-- Spesifikasi Grid -->
+        <div style="display:grid; grid-template-columns:repeat(2, 1fr); gap:12px; background:var(--bg-app); padding:14px; border-radius:12px; border:1px solid var(--border-color);">
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Jam Operasional</div>
+            <div id="modal-detail-hours" style="font-size:0.85rem; font-weight:700; color:var(--text-main); margin-top:2px;">-</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Kisaran Harga</div>
+            <div id="modal-detail-price" style="font-size:0.85rem; font-weight:700; color:var(--amber-primary); margin-top:2px;">-</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Menu Favorit</div>
+            <div id="modal-detail-menu" style="font-size:0.82rem; font-weight:600; color:var(--text-main); margin-top:2px;">-</div>
+          </div>
+          <div>
+            <div style="font-size:0.7rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Kontak & Instagram</div>
+            <div style="font-size:0.82rem; font-weight:600; color:var(--text-main); margin-top:2px;">
+              <span id="modal-detail-phone">-</span> &bull; <span id="modal-detail-ig">-</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Fasilitas -->
+        <div>
+          <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; margin-bottom:8px;">Fasilitas Tersedia</div>
+          <div id="modal-detail-facilities" style="display:flex; flex-wrap:wrap; gap:6px;"></div>
+        </div>
+
+        <!-- SIMULASI PEMESANAN MENU & TRANSAKSI (SESUAI DFD PROSES 3.0) -->
+        <div style="margin-top:16px; padding:14px; background:var(--bg-app); border-radius:12px; border:1px solid var(--border-color);">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <div style="font-size:0.85rem; font-weight:800; color:var(--text-main); display:flex; align-items:center; gap:6px;">
+              <i class="fa-solid fa-cash-register" style="color:var(--amber-primary);"></i>
+              <span>Pemesanan Menu Pelanggan (Proses 3.0 DFD)</span>
+            </div>
+            <span style="font-size:0.75rem; background:#10b98120; color:#10b981; padding:3px 8px; border-radius:99px; font-weight:700;">Hitung Total Otomatis</span>
+          </div>
+
+          <!-- Daftar Menu Pesanan -->
+          <div id="order-menu-list" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- Rendered dynamically by JS -->
+          </div>
+
+          <!-- Total & Konfirmasi -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:12px; padding-top:10px; border-top:1px dashed var(--border-color);">
+            <div>
+              <div style="font-size:0.72rem; color:var(--text-muted); text-transform:uppercase; font-weight:700;">Total Tagihan Pesanan:</div>
+              <div id="order-total-price" style="font-size:1.15rem; font-weight:900; color:var(--amber-primary);">Rp 0</div>
+            </div>
+            <button class="btn-primary" onclick="confirmCustomerOrder()" style="padding:10px 16px; font-size:0.85rem;">
+              <i class="fa-solid fa-receipt"></i> Konfirmasi Pesanan (Struk)
+            </button>
+          </div>
+        </div>
+
+        <!-- Tombol Aksi -->
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:10px;">
+          <button id="modal-detail-btn-route" class="btn-primary" style="justify-content:center; padding:12px;">
+            <i class="fa-solid fa-diamond-turn-right"></i> Petunjuk Rute Jalan
+          </button>
+          <a id="modal-detail-gmaps" href="#" target="_blank" class="btn-outline" style="justify-content:center; text-decoration:none; padding:12px;">
+            <i class="fa-brands fa-google" style="color:#ea4335;"></i> Buka di Google Maps
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: METODOLOGI SDLC & GIS ================= -->
+  <div id="modal-sdlc-info" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-sdlc-info')">
+    <div class="modal-card" style="max-width:700px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <i class="fa-solid fa-diagram-project" style="color:var(--amber-primary); font-size:1.2rem;"></i>
+          <h3 class="modal-title">Penerapan Siklus SDLC Waterfall & Web GIS</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-sdlc-info')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body" style="font-size:0.85rem; line-height:1.6;">
+        <p>Aplikasi <b>KoTemu</b> dikembangkan menggunakan pendekatan <b>SDLC Model Waterfall</b> (Siklus Hidup Pengembangan Perangkat Lunak) dan memenuhi 3 unsur spasial Sistem Informasi Geografis (Point, Line, Polygon) berbasis <b>Citra Satelit Resolusi Tinggi</b>:</p>
+
+        <!-- Waterfall Steps Visual -->
+        <div style="display:flex; flex-direction:column; gap:12px; margin: 10px 0;">
+          <div style="background:var(--bg-app); border-left:4px solid #3b82f6; padding:12px; border-radius:8px;">
+            <b style="color:#2563eb;">1. Analisis Kebutuhan (Requirements Analysis)</b>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Mengidentifikasi kebutuhan pengguna dalam mencari kafe di Kota Palu, mendata 30 titik koordinat lapangan, foto observasi, dan kebutuhan atribut spasial (kategori, fasilitas, harga, jam buka).
+            </p>
+          </div>
+
+          <div style="background:var(--bg-app); border-left:4px solid #8b5cf6; padding:12px; border-radius:8px;">
+            <b style="color:#7c3aed;">2. Perancangan Sistem (System & Database Design)</b>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Merancang arsitektur Web GIS terpusat dengan basis data <b>Firebase Cloud Firestore</b>, memetakan 3 unsur spasial: <b>Point</b> (30 kafe), <b>Line</b> (jaringan jalan arteri akses), dan <b>Polygon</b> (batas wilayah resmi Kota Palu di atas citra satelit).
+            </p>
+          </div>
+
+          <div style="background:var(--bg-app); border-left:4px solid #f59e0b; padding:12px; border-radius:8px;">
+            <b style="color:#d97706;">3. Implementasi (Implementation & Coding)</b>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Membangun antarmuka interaktif menggunakan HTML5, modern CSS3 Coffee Theme, engine peta <b>Leaflet.js</b> dengan peta dasar citra satelit, integrasi SDK Firebase Firestore, dan OSRM Routing Machine untuk kalkulasi rute navigasi turn-by-turn.
+            </p>
+          </div>
+
+          <div style="background:var(--bg-app); border-left:4px solid #10b981; padding:12px; border-radius:8px;">
+            <b style="color:#059669;">4. Pengujian (Testing & Verification)</b>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Memvalidasi keakuratan 30 titik koordinat GPS di atas citra satelit Kota Palu, pengujian fungsionalitas pencarian, filter, respon klik popup peta, perhitungan rute, dan sinkronisasi data database.
+            </p>
+          </div>
+
+          <div style="background:var(--bg-app); border-left:4px solid #06b6d4; padding:12px; border-radius:8px;">
+            <b style="color:#0891b2;">5. Penerapan & Pemeliharaan (Deployment & Cloud Sync)</b>
+            <p style="font-size:0.8rem; color:var(--text-muted); margin-top:4px;">
+              Aplikasi telah berhasil <b>dideploy secara live ke internet</b> dengan protokol HTTPS terenkripsi serta siap disinkronisasi ke Firebase Hosting.
+            </p>
+          </div>
+        </div>
+
+        <div style="background:var(--coffee-100); padding:12px; border-radius:10px; border:1px solid var(--coffee-300); color:var(--coffee-900);">
+          <b>📍 Struktur Data Spasial Peta Satelit Kota Palu yang Diterapkan:</b>
+          <ul style="margin-left:20px; margin-top:4px; font-size:0.8rem;">
+            <li><b>Peta Dasar:</b> Citra Satelit Resolusi Tinggi (Esri World Imagery & Google Hybrid).</li>
+            <li><b>Batas Wilayah Kota Palu:</b> Poligon resmi batas administratif Kota Palu (395,06 km²).</li>
+            <li><b>Line (Garis):</b> Jaringan Jalan Arteri Akses (Jl. Juanda, Jl. Monginsidi, Jl. Gajah Mada, Jl. Samrat, dll).</li>
+            <li><b>Point (Titik):</b> 30 Titik Koordinat Kafe Lapangan Bab 3.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: TAMBAH KAFE BARU ================= -->
+  <div id="modal-add-cafe" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-add-cafe')">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 class="modal-title">Tambah Titik Kafe Baru</h3>
+        <button class="modal-close" onclick="closeModal('modal-add-cafe')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-add-cafe" class="modal-body">
+        <div>
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Nama Kafe / Kedai Kopi *</label>
+          <input type="text" id="input-cafe-name" required placeholder="Contoh: Kopi Temu Juanda" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Kecamatan / Wilayah *</label>
+            <input type="text" id="input-cafe-district" required placeholder="Palu Timur / Palu Selatan / Mantikulore" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Kategori *</label>
+            <input type="text" id="input-cafe-category" required placeholder="Specialty Coffee / Cozy Cafe" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Latitude *</label>
+            <input type="number" step="any" id="input-cafe-lat" required placeholder="-0.8917" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Longitude *</label>
+            <input type="number" step="any" id="input-cafe-lng" required placeholder="119.8707" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+        </div>
+
+        <button type="button" id="btn-pick-coord" class="btn-outline" style="justify-content:center; padding:8px;" onclick="triggerPickCoordinateOnMap()">
+          <i class="fa-solid fa-map-pin" style="color:var(--amber-primary);"></i> Klik di Peta Citra Satelit untuk Ambil Koordinat
+        </button>
+
+        <div>
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Alamat Lengkap *</label>
+          <input type="text" id="input-cafe-address" required placeholder="Jl. Ir. H. Juanda No. ..." style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Kisaran Harga</label>
+            <input type="text" id="input-cafe-price" placeholder="Rp 15.000 - Rp 35.000" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Jam Buka</label>
+            <input type="text" id="input-cafe-hours" placeholder="10:00 - 23:00 WITA" style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+          </div>
+        </div>
+
+        <div>
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Menu Rekomendasi</label>
+          <input type="text" id="input-cafe-menu" placeholder="Signature Coffee, Croissant..." style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);" />
+        </div>
+
+        <div>
+          <label style="font-size:0.75rem; font-weight:700; color:var(--text-muted); display:block; margin-bottom:4px;">Deskripsi Singkat</label>
+          <textarea id="input-cafe-desc" rows="2" placeholder="Suasana nyaman cocok untuk nugas..." style="width:100%; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);"></textarea>
+        </div>
+
+        <button type="submit" class="btn-primary" style="justify-content:center; padding:12px; margin-top:8px;">
+          <i class="fa-solid fa-floppy-disk"></i> Simpan Titik Kafe ke Database
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: FIREBASE CLOUD SYNC & API ================= -->
+  <div id="modal-firebase-sync" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-firebase-sync')">
+    <div class="modal-card" style="max-width:680px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-fire" style="color:#f59e0b; font-size:1.2rem;"></i>
+          <h3 class="modal-title">Integrasi Basis Data & API Firebase</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-firebase-sync')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Tab Switcher -->
+      <div style="display:flex; border-bottom:1px solid var(--border-color); background:var(--bg-app); padding:0 22px; gap:8px;">
+        <button id="tab-btn-sync" class="pill-filter active" style="border-radius:0; border:none; background:transparent; border-bottom:2px solid var(--amber-primary); color:var(--amber-primary); padding:10px 14px; font-weight:700;" onclick="switchFirebaseTab('sync')">
+          <i class="fa-solid fa-cloud-arrow-up"></i> Status & Hubungkan API
+        </button>
+        <button id="tab-btn-guide" class="pill-filter" style="border-radius:0; border:none; background:transparent; color:var(--text-muted); padding:10px 14px; font-weight:700;" onclick="switchFirebaseTab('guide')">
+          <i class="fa-solid fa-book-open"></i> Cara Ambil API Firebase
+        </button>
+        <button id="tab-btn-hosting" class="pill-filter" style="border-radius:0; border:none; background:transparent; color:var(--text-muted); padding:10px 14px; font-weight:700;" onclick="switchFirebaseTab('hosting')">
+          <i class="fa-solid fa-globe"></i> Ambil Link Halaman
+        </button>
+      </div>
+
+      <div class="modal-body" style="font-size:0.85rem; line-height:1.5;">
+        <!-- TAB 1: SYNC & STATUS -->
+        <div id="fb-tab-sync">
+          <div style="background:var(--bg-app); padding:14px; border-radius:12px; border:1px solid var(--border-color); margin-bottom:12px;">
+            <div style="font-weight:700; margin-bottom:6px;">Status Koneksi API Firebase:</div>
+            <div id="fb-status-card" style="display:flex; align-items:center; gap:8px;">
+              <span id="fb-live-dot" class="w-3 h-3 rounded-full bg-emerald-500"></span>
+              <span id="fb-status-title"><b>API Siap & Tersedia</b> (30 Titik Kafe Terdata)</span>
+            </div>
+            <div id="sync-status-msg" style="font-size:0.78rem; color:var(--text-muted); margin-top:6px;">
+              Klik tombol di bawah untuk mengunggah / mensinkronisasi seluruh 30 data kafe ke koleksi 'cafes' di Firebase Firestore.
+            </div>
+          </div>
+
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:16px;">
+            <button id="btn-sync-firebase" class="btn-primary" style="justify-content:center; padding:12px;">
+              <i class="fa-solid fa-cloud-arrow-up"></i> Sync 30 Kafe ke Firebase
+            </button>
+            <button class="btn-outline" style="justify-content:center; padding:12px;" onclick="testFirebaseConnection()">
+              <i class="fa-solid fa-vial-circle-check" style="color:var(--amber-primary);"></i> Tes Koneksi API Firebase
+            </button>
+          </div>
+
+          <div style="border-top:1px solid var(--border-color); padding-top:14px;">
+            <div style="font-weight:700; margin-bottom:4px;">Masukkan / Hubungkan Konfigurasi API Firebase Anda:</div>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin-bottom:8px;">
+              Tempel kode konfigurasi dari Firebase Console di bawah (bisa berupa teks JavaScript <code>const firebaseConfig = { ... }</code> atau JSON murni):
+            </p>
+            <textarea id="custom-firebase-json" rows="4" placeholder='const firebaseConfig = {&#10;  apiKey: "AIzaSy...",&#10;  projectId: "kotemu-palu",&#10;  ...&#10;};' style="width:100%; font-family:monospace; font-size:0.75rem; padding:10px; border:1px solid var(--border-color); border-radius:8px; background:var(--bg-app); color:var(--text-main);"></textarea>
+            
+            <div style="display:flex; gap:8px; margin-top:8px;">
+              <button class="btn-primary" style="flex:1; justify-content:center;" onclick="saveCustomFirebaseCredentials()">
+                <i class="fa-solid fa-plug"></i> Hubungkan & Simpan API
+              </button>
+              <button class="btn-outline" style="color:var(--rose-accent);" onclick="FirebaseService.resetToDefaultData()" title="Reset ke 30 Data Asli">
+                <i class="fa-solid fa-rotate-left"></i> Reset
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 2: PANDUAN CARA AMBIL API FIREBASE -->
+        <div id="fb-tab-guide" style="display:none; flex-direction:column; gap:12px;">
+          <div style="background:var(--coffee-100); padding:10px 14px; border-radius:10px; border:1px solid var(--coffee-300); color:var(--coffee-900); font-size:0.8rem;">
+            <b>Panduan 5 Langkah Cara Mengambil API Firebase dari Konsol:</b>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            <div style="display:flex; gap:10px;">
+              <span style="width:24px; height:24px; border-radius:50%; background:var(--amber-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.75rem; flex-shrink:0;">1</span>
+              <div>
+                <b>Buka Konsol Firebase:</b>
+                <p style="font-size:0.78rem; color:var(--text-muted);">Kunjungi <a href="https://console.firebase.google.com" target="_blank" style="color:var(--amber-primary); font-weight:bold;">console.firebase.google.com</a> dan masuk menggunakan akun Google Anda.</p>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <span style="width:24px; height:24px; border-radius:50%; background:var(--amber-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.75rem; flex-shrink:0;">2</span>
+              <div>
+                <b>Buat Proyek Baru:</b>
+                <p style="font-size:0.78rem; color:var(--text-muted);">Klik <b>"Tambahkan proyek"</b> (Add project) &bull; Beri nama proyek: <code>KoTemu</code> &bull; Lanjutkan hingga proyek berhasil dibuat.</p>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <span style="width:24px; height:24px; border-radius:50%; background:var(--amber-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.75rem; flex-shrink:0;">3</span>
+              <div>
+                <b>Daftarkan Aplikasi Web & Salin API:</b>
+                <p style="font-size:0.78rem; color:var(--text-muted);">Di halaman Project Overview, klik ikon Web <b>(&lt;/&gt;)</b> &bull; Masukkan nama aplikasi <code>KoTemu-Web</code> &bull; Klik <b>Daftarkan aplikasi</b> &bull; Firebase akan menampilkan blok <code>const firebaseConfig = { ... }</code>. Salin seluruh kode tersebut!</p>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <span style="width:24px; height:24px; border-radius:50%; background:var(--amber-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.75rem; flex-shrink:0;">4</span>
+              <div>
+                <b>Aktifkan Firestore Database & Rules:</b>
+                <p style="font-size:0.78rem; color:var(--text-muted);">Di bilah menu kiri, klik <b>Firestore Database</b> &bull; Klik <b>Create Database</b> &bull; Pilih lokasi server (contoh: <code>asia-southeast2</code> Jakarta) &bull; Buka tab <b>Rules</b> dan ganti menjadi: <code>allow read, write: if true;</code> &bull; Klik <b>Publish</b>.</p>
+              </div>
+            </div>
+
+            <div style="display:flex; gap:10px;">
+              <span style="width:24px; height:24px; border-radius:50%; background:var(--amber-primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:0.75rem; flex-shrink:0;">5</span>
+              <div>
+                <b>Tempelkan ke Aplikasi:</b>
+                <p style="font-size:0.78rem; color:var(--text-muted);">Kembali ke tab <i>Status & Hubungkan API</i> di modal ini, tempelkan kode yang Anda salin ke kolom input, lalu klik <b>Hubungkan & Simpan API</b>. Selesai!</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TAB 3: CARA AMBIL LINK HALAMAN VIA FIREBASE HOSTING -->
+        <div id="fb-tab-hosting" style="display:none; flex-direction:column; gap:12px;">
+          <div style="background:var(--bg-app); padding:12px; border-radius:10px; border:1px solid var(--border-color);">
+            <b>🚀 Cara Mengambil Link / URL Halaman dari Firebase Hosting:</b>
+            <p style="font-size:0.78rem; color:var(--text-muted); margin-top:4px;">
+              Jika Anda ingin halaman website ini terdeploy langsung di domain resmi Firebase (misal: <code>https://kotemu-palu.web.app</code>), jalankan 3 langkah ini di Terminal:
+            </p>
+          </div>
+
+          <div style="background:#1e1e1e; color:#d4d4d4; padding:12px; border-radius:10px; font-family:monospace; font-size:0.78rem; line-height:1.6;">
+            <div style="color:#6a9955;"># 1. Buka folder proyek di Terminal</div>
+            <div>cd program</div>
+            <br>
+            <div style="color:#6a9955;"># 2. Login ke akun Google Firebase Anda</div>
+            <div>firebase login</div>
+            <br>
+            <div style="color:#6a9955;"># 3. Deploy langsung ke Firebase Hosting</div>
+            <div>firebase deploy</div>
+          </div>
+
+          <p style="font-size:0.78rem; color:var(--text-muted);">
+            Setelah perintah selesai, terminal Firebase CLI akan langsung memberikan tautan hosting resmi halaman Anda:
+            <br><code style="color:var(--amber-primary); font-weight:bold;">Hosting URL: https://&lt;id-proyek-anda&gt;.web.app</code>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  </div>
+  <!-- ================= TOAST CONTAINER ================= -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- ================= SCRIPTS ================= -->
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <!-- Leaflet MarkerCluster JS -->
+  <script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+  <!-- Leaflet Heatmap JS (Local File) -->
+  <script src="assets/js/leaflet-heat.js"></script>
+
+  <!-- Firebase Compat SDK (v10) -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <!-- KoTemu Application Scripts -->
+  <script src="assets/js/spatial-data.js"></script>
+  <script src="assets/js/cafes-data.js"></script>
+  <script src="assets/js/firebase-config.js"></script>
+  <script src="assets/js/routing-service.js"></script>
+  <script src="assets/js/app.js"></script>
+
+  <script>
+    function switchFirebaseTab(tab) {
+      document.getElementById('tab-btn-sync').style.borderBottom = tab === 'sync' ? '2px solid var(--amber-primary)' : 'none';
+      document.getElementById('tab-btn-sync').style.color = tab === 'sync' ? 'var(--amber-primary)' : 'var(--text-muted)';
+      document.getElementById('tab-btn-guide').style.borderBottom = tab === 'guide' ? '2px solid var(--amber-primary)' : 'none';
+      document.getElementById('tab-btn-guide').style.color = tab === 'guide' ? 'var(--amber-primary)' : 'var(--text-muted)';
+      document.getElementById('tab-btn-hosting').style.borderBottom = tab === 'hosting' ? '2px solid var(--amber-primary)' : 'none';
+      document.getElementById('tab-btn-hosting').style.color = tab === 'hosting' ? 'var(--amber-primary)' : 'var(--text-muted)';
+
+      document.getElementById('fb-tab-sync').style.display = tab === 'sync' ? 'block' : 'none';
+      document.getElementById('fb-tab-guide').style.display = tab === 'guide' ? 'flex' : 'none';
+      document.getElementById('fb-tab-hosting').style.display = tab === 'hosting' ? 'flex' : 'none';
+    }
+
+    async function testFirebaseConnection() {
+      const input = document.getElementById('custom-firebase-json').value.trim();
+      let config = input ? parseFirebaseInput(input) : getActiveFirebaseConfig();
+      if (!config) {
+        showToast("Masukkan konfigurasi API Firebase terlebih dahulu.", "error");
+        return;
+      }
+      showToast("Menguji koneksi API Firebase...", "info");
+      const res = await FirebaseService.testFirebaseApi(config);
+      if (res.success) {
+        showToast(res.message, "success");
+      } else {
+        showToast(res.message, "error");
+      }
+    }
+
+    function saveCustomFirebaseCredentials() {
+      const val = document.getElementById('custom-firebase-json').value.trim();
+      if (!val) {
+        showToast("Masukkan API Key atau konfigurasi Firebase yang valid", "error");
+        return;
+      }
+      const parsed = parseFirebaseInput(val);
+      if (!parsed) {
+        showToast("Format API tidak dikenali. Salin seluruh objek 'const firebaseConfig = { ... }' dari Firebase Console.", "error");
+        return;
+      }
+      FirebaseService.saveCustomConfig(parsed);
+      showToast("API Firebase berhasil dihubungkan & disimpan!", "success");
+      closeModal('modal-firebase-sync');
+    }
+  </script>
+
+
+  <!-- ================= MODAL: LOGIN ADMIN / KASIR (PROSES 1.0 DFD) ================= -->
+  <div id="modal-admin-login" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-admin-login')">
+    <div class="modal-card" style="max-width:440px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <i class="fa-solid fa-user-shield" style="color:var(--amber-primary); font-size:1.3rem;"></i>
+          <h3 class="modal-title">Autentikasi & Login Admin (Proses 1.0)</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-admin-login')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5;">
+          Sesuai pemodelan <b>DFD Proses 1.0</b> pada Bab IV Laporan, Admin/Kasir wajib melakukan autentikasi username & kata sandi sebelum mengakses panel kelola data dan laporan transaksi harian.
+        </p>
+        <form id="form-admin-login" onsubmit="event.preventDefault(); submitAdminLogin();" style="display:flex; flex-direction:column; gap:12px;">
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-main); text-transform:uppercase;">Username Admin</label>
+            <input type="text" id="input-admin-user" class="form-input" placeholder="Masukkan username" required value="admin" style="width:100%; margin-top:4px; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-app); color:var(--text-main);" />
+          </div>
+          <div>
+            <label style="font-size:0.75rem; font-weight:700; color:var(--text-main); text-transform:uppercase;">Kata Sandi (Password)</label>
+            <input type="password" id="input-admin-pass" class="form-input" placeholder="Masukkan kata sandi" required value="admin123" style="width:100%; margin-top:4px; padding:10px; border-radius:8px; border:1px solid var(--border-color); background:var(--bg-app); color:var(--text-main);" />
+          </div>
+          <div style="background:#d9770615; border:1px solid #d9770640; border-radius:8px; padding:8px 12px; font-size:0.78rem; color:var(--amber-primary);">
+            <i class="fa-solid fa-circle-info"></i> <b>Kredensial Demo:</b> Username: <code>admin</code> | Password: <code>admin123</code>
+          </div>
+          <button type="submit" class="btn-primary" style="justify-content:center; padding:12px; font-weight:700; margin-top:6px;">
+            <i class="fa-solid fa-right-to-bracket"></i> Masuk Sebagai Admin Kasir
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: STRUK KONFIRMASI PESANAN (PROSES 3.0 DFD) ================= -->
+  <div id="modal-struk-transaksi" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-struk-transaksi')">
+    <div class="modal-card" style="max-width:440px; font-family:'Courier New', Courier, monospace;">
+      <div style="background:#ffffff; color:#111827; padding:24px; border-radius:12px; box-shadow:0 10px 30px rgba(0,0,0,0.2);">
+        <div style="text-align:center; border-bottom:2px dashed #9ca3af; padding-bottom:12px; margin-bottom:14px;">
+          <h2 style="font-size:1.3rem; font-weight:900; letter-spacing:1px; margin:0;" id="struk-cafe-name">KAFE KOTEMU</h2>
+          <div style="font-size:0.75rem; color:#4b5563; margin-top:2px;">Kota Palu, Sulawesi Tengah</div>
+          <div style="font-size:0.72rem; color:#6b7280; margin-top:4px;">*** STRUK BUKTI TRANSAKSI PEMESANAN ***</div>
+        </div>
+
+        <div style="font-size:0.78rem; color:#374151; margin-bottom:12px; line-height:1.5;">
+          <div style="display:flex; justify-content:space-between;"><span>No. Transaksi:</span><b id="struk-id">TRX-001</b></div>
+          <div style="display:flex; justify-content:space-between;"><span>Waktu:</span><span id="struk-date">19/11/2026 14:00</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Pengguna:</span><span>Pelanggan (Meja 05)</span></div>
+          <div style="display:flex; justify-content:space-between;"><span>Status:</span><b style="color:#059669;">BERHASIL DICATAT (D3)</b></div>
+        </div>
+
+        <div style="border-top:1px dashed #d1d5db; border-bottom:1px dashed #d1d5db; padding:10px 0; margin-bottom:12px;">
+          <div id="struk-items" style="display:flex; flex-direction:column; gap:6px; font-size:0.78rem;">
+            <!-- Items printed here -->
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; font-size:1rem; font-weight:900; border-bottom:2px dashed #9ca3af; padding-bottom:12px; margin-bottom:14px;">
+          <span>TOTAL BAYAR:</span>
+          <span id="struk-total" style="color:#b45309;">Rp 0</span>
+        </div>
+
+        <div style="text-align:center; font-size:0.72rem; color:#6b7280; line-height:1.4;">
+          <div>Data transaksi tersimpan pada <b>D3 Data Transaksi</b> basis data sistem.</div>
+          <div style="margin-top:4px; font-weight:700;">Terima Kasih atas Kunjungan Anda!</div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin-top:18px;">
+          <button class="btn-primary" style="flex:1; justify-content:center; padding:10px; font-family:sans-serif;" onclick="closeModal('modal-struk-transaksi'); openModal('modal-rekap-transaksi'); renderTransactionReport();">
+            <i class="fa-solid fa-chart-line"></i> Rekap Laporan
+          </button>
+          <button class="btn-outline" style="justify-content:center; padding:10px 16px; font-family:sans-serif;" onclick="closeModal('modal-struk-transaksi')">
+            Tutup
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MODAL: REKAP LAPORAN TRANSAKSI (PROSES 5.0 DFD) ================= -->
+  <div id="modal-rekap-transaksi" class="modal-overlay" onclick="if(event.target===this) closeModal('modal-rekap-transaksi')">
+    <div class="modal-card" style="max-width:820px;">
+      <div class="modal-header">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <i class="fa-solid fa-chart-line" style="color:var(--amber-primary); font-size:1.3rem;"></i>
+          <h3 class="modal-title">Rekapitulasi Laporan Transaksi Harian (Proses 5.0)</h3>
+        </div>
+        <button class="modal-close" onclick="closeModal('modal-rekap-transaksi')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.82rem; color:var(--text-muted); margin-bottom:14px; line-height:1.5;">
+          Data laporan transaksi harian di bawah ini ditarik secara otomatis dari arsip <b>D3 Data Transaksi</b> sesuai dengan model DFD Proses 5.0 yang dirancang pada Bab IV laporan akhir.
+        </p>
+
+        <!-- KPI Cards -->
+        <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:16px;">
+          <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:10px; padding:12px;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Total Pesanan</div>
+            <div id="rekap-total-trx" style="font-size:1.3rem; font-weight:900; color:var(--text-main); margin-top:4px;">0</div>
+          </div>
+          <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:10px; padding:12px;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Total Pendapatan</div>
+            <div id="rekap-total-omzet" style="font-size:1.3rem; font-weight:900; color:var(--amber-primary); margin-top:4px;">Rp 0</div>
+          </div>
+          <div style="background:var(--bg-app); border:1px solid var(--border-color); border-radius:10px; padding:12px;">
+            <div style="font-size:0.72rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Rata-Rata / Pesanan</div>
+            <div id="rekap-avg-trx" style="font-size:1.3rem; font-weight:900; color:#10b981; margin-top:4px;">Rp 0</div>
+          </div>
+        </div>
+
+        <!-- Tabel Riwayat Transaksi -->
+        <div style="max-height:300px; overflow-y:auto; border:1px solid var(--border-color); border-radius:8px;">
+          <table style="width:100%; border-collapse:collapse; font-size:0.8rem; text-align:left;">
+            <thead>
+              <tr style="background:var(--bg-app); border-bottom:1px solid var(--border-color); color:var(--text-muted);">
+                <th style="padding:10px;">ID Transaksi</th>
+                <th style="padding:10px;">Kafe</th>
+                <th style="padding:10px;">Waktu</th>
+                <th style="padding:10px;">Rincian Menu</th>
+                <th style="padding:10px;">Total</th>
+                <th style="padding:10px;">Status</th>
+              </tr>
+            </thead>
+            <tbody id="rekap-table-body">
+              <!-- Rendered by JS -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:16px;">
+          <button class="btn-outline" onclick="resetTransactionHistory()" style="font-size:0.8rem; color:#ef4444; border-color:#ef444440;">
+            <i class="fa-solid fa-trash-can"></i> Bersihkan Riwayat Simulasi
+          </button>
+          <button class="btn-primary" onclick="printReportSummary()" style="padding:10px 18px; font-size:0.85rem;">
+            <i class="fa-solid fa-print"></i> Cetak / Ekspor Laporan
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</body>
+</html>

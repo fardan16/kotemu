@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <linearGradient id="coffeeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#b45309" />
+    </linearGradient>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#3c2415" />
+      <stop offset="100%" stop-color="#1e110a" />
+    </linearGradient>
+  </defs>
+  <rect width="100" height="100" rx="28" fill="url(#bgGrad)" />
+  <!-- Map Pin Frame -->
+  <path d="M50 18 C37 18 27 28 27 41 C27 58 48 78 50 80 C52 78 73 58 73 41 C73 28 63 18 50 18 Z" fill="url(#coffeeGrad)" />
+  <!-- Coffee Cup Inside -->
+  <rect x="40" y="34" width="20" height="15" rx="4" fill="#ffffff" />
+  <path d="M60 37 C64 37 66 39 66 42 C66 45 64 47 60 47" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" />
+  <!-- Steam Curves -->
+  <path d="M44 28 Q46 25 44 22" fill="none" stroke="#fef3c7" stroke-width="2" stroke-linecap="round" />
+  <path d="M50 27 Q52 24 50 21" fill="none" stroke="#fef3c7" stroke-width="2" stroke-linecap="round" />
+  <path d="M56 28 Q58 25 56 22" fill="none" stroke="#fef3c7" stroke-width="2" stroke-linecap="round" />
+</svg>

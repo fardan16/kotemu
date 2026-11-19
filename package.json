@@ -1,0 +1,25 @@
+{
+  "name": "kotemu-palu-gis",
+  "version": "1.0.0",
+  "description": "KoTemu - Sistem Informasi Geografis Pemetaan Sebaran Kafe di Kota Palu menggunakan Siklus SDLC Waterfall & Firebase Database",
+  "main": "index.html",
+  "scripts": {
+    "start": "npx serve -l 3000 .",
+    "seed": "node seed-firebase.js",
+    "deploy:firebase": "firebase deploy",
+    "deploy:surge": "npx surge . kotemu-palu.surge.sh"
+  },
+  "keywords": [
+    "gis",
+    "webgis",
+    "palu",
+    "kotemu",
+    "sdlc",
+    "waterfall",
+    "leaflet",
+    "firebase",
+    "firestore"
+  ],
+  "author": "Kelompok 5 (Muhammad Zakiyullah, Fardan Yudhistira, Hasan Aqsah)",
+  "license": "MIT"
+}
